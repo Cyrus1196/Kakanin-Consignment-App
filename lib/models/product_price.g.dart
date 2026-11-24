@@ -8,7 +8,7 @@ part of 'product_price.dart';
 
 class ProductPriceAdapter extends TypeAdapter<ProductPrice> {
   @override
-  final int typeId = 2;
+  final int typeId = 1;
 
   @override
   ProductPrice read(BinaryReader reader) {

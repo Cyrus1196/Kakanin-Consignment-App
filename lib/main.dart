@@ -1,31 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:hive_flutter/hive_flutter.dart';
-import 'models/product.dart';
-import 'models/product_price.dart';
+import 'database/hive_database.dart';
 import 'screens/home_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Hive.initFlutter();
-  
-  // Register adapters if not already registered
-  if (!Hive.isAdapterRegistered(ProductAdapter().typeId)) {
-    Hive.registerAdapter(ProductAdapter());
-  }
-  if (!Hive.isAdapterRegistered(ProductPriceAdapter().typeId)) {
-    Hive.registerAdapter(ProductPriceAdapter());
-  }
-
-  // Open boxes
-  await Hive.openBox<Product>('products');
-  await Hive.openBox<ProductPrice>('product_prices');
-  await Hive.openBox<String>('available_stalls');
-
-  runApp(MyApp());
+  await HiveDatabase.initialize();
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -44,7 +28,7 @@ class MyApp extends StatelessWidget {
           child: child!,
         );
       },
-      home: HomeScreen(),
+      home: const HomeScreen(),
     );
   }
 }

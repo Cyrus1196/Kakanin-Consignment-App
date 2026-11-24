@@ -1,45 +1,111 @@
 import 'package:hive_flutter/hive_flutter.dart';
-import '../models/product.dart';
+import '../models/consignment_entry.dart';
 import '../models/product_price.dart';
 
 class HiveDatabase {
-  static Future<Box<Product>> getProductsBox() async {
-    if (!Hive.isBoxOpen('products')) {
-      return await Hive.openBox<Product>('products');
+  static const String productPricesBoxName = 'product_prices';
+  static const String consignmentsBoxName = 'consignments';
+
+  static Future<void> initialize() async {
+    await Hive.initFlutter();
+
+    if (!Hive.isAdapterRegistered(ProductPriceAdapter().typeId)) {
+      Hive.registerAdapter(ProductPriceAdapter());
     }
-    return Hive.box<Product>('products');
+    if (!Hive.isAdapterRegistered(ConsignmentEntryAdapter().typeId)) {
+      Hive.registerAdapter(ConsignmentEntryAdapter());
+    }
+
+    final box = await getProductPricesBox();
+    if (box.isEmpty) {
+      const defaultPrices = {
+        'Biko': 5.0,
+        'Suman': 10.0,
+        'Puto': 10.0,
+        'Puto Maya': 5.0,
+      };
+      for (final entry in defaultPrices.entries) {
+        await box.add(ProductPrice(name: entry.key, price: entry.value));
+      }
+    }
+
+    await getConsignmentsBox();
   }
 
   static Future<Box<ProductPrice>> getProductPricesBox() async {
-    if (!Hive.isBoxOpen('product_prices')) {
-      return await Hive.openBox<ProductPrice>('product_prices');
+    if (!Hive.isBoxOpen(productPricesBoxName)) {
+      return Hive.openBox<ProductPrice>(productPricesBoxName);
     }
-    return Hive.box<ProductPrice>('product_prices');
+    return Hive.box<ProductPrice>(productPricesBoxName);
   }
 
-  static Future<Box<String>> getAvailableStallsBox() async {
-    if (!Hive.isBoxOpen('available_stalls')) {
-      return await Hive.openBox<String>('available_stalls');
-    }
-    return Hive.box<String>('available_stalls');
+  static Box<ProductPrice> productPricesBox() {
+    return Hive.box<ProductPrice>(productPricesBoxName);
   }
 
-  static Future<void> initializeBoxes() async {
-    await Hive.initFlutter();
-    
-    if (!Hive.isAdapterRegistered(0)) {
-      Hive.registerAdapter(ProductAdapter());
-    }
-    if (!Hive.isAdapterRegistered(1)) {
-      Hive.registerAdapter(ProductPriceAdapter());
-    }
-
-    await getProductsBox();
-    await getProductPricesBox();
-    await getAvailableStallsBox();
+  static Future<void> addProduct(String name, double price) {
+    return productPricesBox().add(ProductPrice(name: name, price: price));
   }
 
-  static Future<void> closeBoxes() async {
-    await Hive.close();
+  static Future<void> updateProduct(ProductPrice product, String name, double price) {
+    return productPricesBox().put(
+      product.key,
+      ProductPrice(name: name, price: price),
+    );
+  }
+
+  static Future<void> deleteProduct(ProductPrice product) {
+    return product.delete();
+  }
+
+  static Future<Box<ConsignmentEntry>> getConsignmentsBox() async {
+    if (!Hive.isBoxOpen(consignmentsBoxName)) {
+      return Hive.openBox<ConsignmentEntry>(consignmentsBoxName);
+    }
+    return Hive.box<ConsignmentEntry>(consignmentsBoxName);
+  }
+
+  static Box<ConsignmentEntry> consignmentsBox() {
+    return Hive.box<ConsignmentEntry>(consignmentsBoxName);
+  }
+
+  static bool _sameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
+  static Future<void> addConsignment(
+    String productName,
+    double price,
+    DateTime date,
+  ) async {
+    final box = consignmentsBox();
+    final day = DateTime(date.year, date.month, date.day);
+    for (final entry in box.values) {
+      if (entry.productName.toLowerCase() == productName.toLowerCase() &&
+          _sameDay(entry.date, day)) {
+        entry.quantity += 1;
+        entry.price = price;
+        await entry.save();
+        return;
+      }
+    }
+    await box.add(
+      ConsignmentEntry(
+        productName: productName,
+        price: price,
+        quantity: 1,
+        date: day,
+      ),
+    );
+  }
+
+  static Future<void> changeQuantity(ConsignmentEntry entry, int quantity) {
+    if (quantity < 1) return deleteConsignment(entry);
+    entry.quantity = quantity;
+    return entry.save();
+  }
+
+  static Future<void> deleteConsignment(ConsignmentEntry entry) {
+    return entry.delete();
   }
 }

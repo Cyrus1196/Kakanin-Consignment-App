@@ -1,212 +1,53 @@
-// home_screen.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'package:mags101/screens/Add_Product_to_Stall.dart';
-import 'package:mags101/screens/sales_report_screen.dart'; // Import sales report screen
-import 'View_Stall_Activity.dart';
-import '../models/product.dart';
+import '../database/hive_database.dart';
+import '../models/consignment_entry.dart';
 import '../models/product_price.dart';
-import '../providers/product_price_provider.dart';
 
 class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
   @override
-  _HomeScreenState createState() => _HomeScreenState();
+  State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  List<Product> products = [];
-
-  @override
-  void initState() {
-    super.initState();
-    _initializeProductPrices();
-  }
-
-  void _initializeProductPrices() {
-    final box = Hive.box<ProductPrice>('product_prices');
-    if (box.isEmpty) {
-      final defaultPrices = {
-        'Biko': 5.0,
-        'Suman': 10.0,
-        'Puto': 10.0,
-        'Puto Maya': 5.0,
-      };
-      
-      defaultPrices.forEach((name, price) {
-        box.add(ProductPrice(name: name, price: price));
-      });
-    }
+  void _showManageProducts() {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => const _ManageProductsDialog(),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Kakanin Consignment'),
+        title: const Text('Kakanin Consignment'),
         backgroundColor: Colors.green[800],
+        foregroundColor: Colors.white,
       ),
       drawer: Drawer(
         child: ListView(
           padding: EdgeInsets.zero,
-          children: <Widget>[
+          children: [
             DrawerHeader(
-              child: Text('Menu', style: TextStyle(color: Colors.white, fontSize: 24)),
-              decoration: BoxDecoration(
-                color: Colors.green[800],
+              decoration: BoxDecoration(color: Colors.green[800]),
+              child: const Text(
+                'Menu',
+                style: TextStyle(color: Colors.white, fontSize: 24),
               ),
             ),
             ListTile(
-              leading: Icon(Icons.add_business, color: Colors.green[800]),
-              title: Text('Add Product to Stall', style: TextStyle(color: Colors.black)),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => AddProductScreen(onAddProduct: (Product product) {
-                      setState(() {
-                        products.add(product);
-                      });
-                    }),
-                  ),
-                );
-              },
-            ),
-            ListTile(
               leading: Icon(Icons.edit_note, color: Colors.green[800]),
-              title: Text('Manage Products', style: TextStyle(color: Colors.black)),
+              title: const Text(
+                'Manage Products',
+                style: TextStyle(color: Colors.black),
+              ),
               onTap: () {
-                showDialog(
-                  context: context,
-                  builder: (BuildContext context) {
-                    final box = Hive.box<ProductPrice>('product_prices');
-                    final TextEditingController newProductController = TextEditingController();
-                    final TextEditingController newPriceController = TextEditingController();
-
-                    return AlertDialog(
-                      title: Text('Manage Products'),
-                      content: Container(
-                        width: double.maxFinite,
-                        height: MediaQuery.of(context).size.height * 0.6,
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            TextField(
-                              controller: newProductController,
-                              decoration: InputDecoration(
-                                labelText: 'Product Name',
-                                border: OutlineInputBorder(),
-                              ),
-                            ),
-                            SizedBox(height: 8),
-                            TextField(
-                              controller: newPriceController,
-                              keyboardType: TextInputType.number,
-                              decoration: InputDecoration(
-                                labelText: 'Price',
-                                prefixText: '₱',
-                                border: OutlineInputBorder(),
-                              ),
-                            ),
-                            SizedBox(height: 8),
-                            ElevatedButton(
-                              onPressed: () {
-                                final name = newProductController.text.trim();
-                                final price = double.tryParse(newPriceController.text);
-                                if (name.isNotEmpty && price != null && price > 0) {
-                                  // Add new product directly
-                                  box.add(ProductPrice(name: name, price: price));
-                                  
-                                  // Get all products and sort them
-                                  var allProducts = box.values.toList()
-                                    ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-                                  
-                                  // Clear input fields
-                                  newProductController.clear();
-                                  newPriceController.clear();
-                                  
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('Product added successfully')),
-                                  );
-                                } else {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('Please enter valid product details')),
-                                  );
-                                }
-                              },
-                              child: Text('Add Product'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.green[600],
-                              ),
-                            ),
-                            Divider(),
-                            Expanded(
-                              child: ValueListenableBuilder(
-                                valueListenable: box.listenable(),
-                                builder: (context, Box<ProductPrice> box, _) {
-                                  final prices = box.values.toList()
-                                    ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-                                  return ListView.builder(
-                                    itemCount: prices.length,
-                                    itemBuilder: (context, index) {
-                                      final price = prices[index];
-                                      return ListTile(
-                                        title: Text('${price.name} - ₱${price.price.toStringAsFixed(2)}'),
-                                        trailing: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            IconButton(
-                                              icon: Icon(Icons.edit),
-                                              onPressed: () => _editProductPrice(price.name),
-                                            ),
-                                            IconButton(
-                                              icon: Icon(Icons.delete, color: Colors.red),
-                                              onPressed: () {
-                                                final index = box.values.toList().indexOf(price);
-                                                box.deleteAt(index);
-                                              },
-                                            ),
-                                          ],
-                                        ),
-                                      );
-                                    },
-                                  );
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: Text('Close'),
-                        ),
-                      ],
-                    );
-                  },
-                );
-              },
-            ),
-            ListTile(
-              title: Text('Sales Report', style: TextStyle(color: Colors.black)), // Sales Report
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => SalesReportScreen(products: products), // Go to SalesReportScreen
-                  ),
-                );
-              },
-            ),
-            ListTile(
-              title: Text('View Stall Activity', style: TextStyle(color: Colors.black)),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => StallActivityScreen(),
-                  ),
-                );
+                Navigator.pop(context);
+                _showManageProducts();
               },
             ),
           ],
@@ -215,7 +56,7 @@ class _HomeScreenState extends State<HomeScreen> {
       body: Container(
         width: double.infinity,
         height: double.infinity,
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           image: DecorationImage(
             image: AssetImage('assets/images/bg2.jpg'),
             fit: BoxFit.cover,
@@ -224,84 +65,45 @@ class _HomeScreenState extends State<HomeScreen> {
         child: SafeArea(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: <Widget>[
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Kakanin Stall',
-                      style: TextStyle(
-                        fontSize: 36,
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
+            children: [
+              const Text(
+                'Kakanin Stall',
+                style: TextStyle(
+                  fontSize: 36,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Monitor Your Products',
+                style: TextStyle(
+                  fontSize: 24,
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 40),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _showManageProducts,
+                    style: ElevatedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      backgroundColor: Colors.brown[600],
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 40,
+                        vertical: 15,
+                      ),
+                      textStyle: const TextStyle(fontSize: 20),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
                       ),
                     ),
-                    SizedBox(height: 10),
-                    Text(
-                      'Monitor Your Products',
-                      style: TextStyle(
-                        fontSize: 24,
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    SizedBox(height: 40),
-                    Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 20),
-                      child: Column(
-                        children: [
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton(
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => AddProductScreen(onAddProduct: (Product product) {
-                                      setState(() {
-                                        products.add(product);
-                                      });
-                                    }),
-                                  ),
-                                );
-                              },
-                              child: Text('Add Product to Stall'),
-                              style: ElevatedButton.styleFrom(
-                                foregroundColor: Colors.white,
-                                backgroundColor: Colors.brown[600],
-                                padding: EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-                                textStyle: TextStyle(fontSize: 20),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                              ),
-                            ),
-                          ),
-                          SizedBox(height: 16),
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton(
-                              onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => StallActivityScreen(),
-                                  ),
-                                );
-                              },
-                              child: Text('View Stall Activity'),
-                              style: ElevatedButton.styleFrom(
-                                foregroundColor: Colors.white,
-                                backgroundColor: Colors.brown[600],
-                                padding: EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-                                textStyle: TextStyle(fontSize: 20),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                    child: const Text('Manage Products'),
+                  ),
                 ),
               ),
             ],
@@ -310,58 +112,304 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-  
-  // Add this import at the top
-  
-  
-  final priceProvider = ProductPriceProvider();
-  
-  void _editProductPrice(String productName) {
-    final box = Hive.box<ProductPrice>('product_prices');
-    final currentPrice = box.values.firstWhere(
-      (price) => price.name == productName,
-      orElse: () => ProductPrice(name: productName, price: 0.0),
-    ).price;
-    
-    TextEditingController priceController = TextEditingController(
-      text: currentPrice.toString()
-    );
-    
-    showDialog(
+}
+
+class _ManageProductsDialog extends StatelessWidget {
+  const _ManageProductsDialog();
+
+  Future<void> _showProductForm(BuildContext context, {ProductPrice? product}) {
+    return showDialog<bool>(
       context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text('Edit $productName Price'),
-          content: TextField(
-            controller: priceController,
-            keyboardType: TextInputType.number,
-            decoration: InputDecoration(
-              labelText: 'New Price',
-              prefixText: '₱',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                double? newPrice = double.tryParse(priceController.text);
-                if (newPrice != null && newPrice > 0) {
-                  priceProvider.updatePrice(productName, newPrice);
-                  Navigator.pop(context);
-                }
+      builder: (dialogContext) => _ProductFormDialog(product: product),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final box = HiveDatabase.productPricesBox();
+
+    return AlertDialog(
+      title: const Text('Manage Products'),
+      content: SizedBox(
+        width: double.maxFinite,
+        height: MediaQuery.of(context).size.height * 0.55,
+        child: ValueListenableBuilder(
+          valueListenable: box.listenable(),
+          builder: (context, Box<ProductPrice> box, _) {
+            final products = box.values.toList()
+              ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+
+            if (products.isEmpty) {
+              return const Center(child: Text('No products yet'));
+            }
+
+            return ListView.separated(
+              itemCount: products.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (context, index) {
+                final product = products[index];
+                return ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(product.name),
+                  subtitle: Text('₱${product.price.toStringAsFixed(2)}'),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.edit),
+                        tooltip: 'Edit product',
+                        onPressed: () => _showProductForm(context, product: product),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete, color: Colors.red),
+                        tooltip: 'Delete product',
+                        onPressed: () => HiveDatabase.deleteProduct(product),
+                      ),
+                    ],
+                  ),
+                );
               },
-              child: Text('Save'),  // Added missing child parameter
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green[600],
-              ),
-            ),
-          ],
+            );
+          },
+        ),
+      ),
+      actions: [
+        ElevatedButton.icon(
+          onPressed: () => _showProductForm(context),
+          icon: const Icon(Icons.add),
+          label: const Text('Add Product'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.green[600],
+            foregroundColor: Colors.white,
+          ),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Close'),
+        ),
+      ],
+    );
+  }
+}
+
+class _DecimalInputFormatter extends TextInputFormatter {
+  const _DecimalInputFormatter();
+
+  static final RegExp _pattern = RegExp(r'^\d*\.?\d{0,2}$');
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    if (newValue.text.isEmpty || _pattern.hasMatch(newValue.text)) {
+      return newValue;
+    }
+    return oldValue;
+  }
+}
+
+class _ProductFormDialog extends StatefulWidget {
+  const _ProductFormDialog({this.product});
+
+  final ProductPrice? product;
+
+  @override
+  State<_ProductFormDialog> createState() => _ProductFormDialogState();
+}
+
+class _ProductFormDialogState extends State<_ProductFormDialog> {
+  late final TextEditingController _nameController;
+  late final TextEditingController _priceController;
+  DateTime _selectedDate = DateTime.now();
+  String? _error;
+
+  static const _months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+
+  bool get _isEdit => widget.product != null;
+
+  String _formatDate(DateTime date) {
+    return '${_months[date.month - 1]} ${date.day}, ${date.year}';
+  }
+
+  bool _sameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2100),
+    );
+    if (picked == null) return;
+    setState(() {
+      _selectedDate = DateTime(picked.year, picked.month, picked.day);
+    });
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.product?.name ?? '');
+    _priceController = TextEditingController(
+      text: widget.product == null ? '' : widget.product!.price.toString(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _priceController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final name = _nameController.text.trim();
+    final price = double.tryParse(_priceController.text);
+    if (name.isEmpty || price == null || price <= 0) {
+      setState(() => _error = 'Enter a product name and a price greater than 0.');
+      return;
+    }
+
+    if (_isEdit) {
+      await HiveDatabase.updateProduct(widget.product!, name, price);
+    } else {
+      await HiveDatabase.addProduct(name, price);
+      await HiveDatabase.addConsignment(name, price, _selectedDate);
+    }
+    if (!mounted) return;
+    Navigator.pop(context, true);
+  }
+
+  Widget _dateField() {
+    return InkWell(
+      onTap: _pickDate,
+      child: InputDecorator(
+        decoration: const InputDecoration(
+          labelText: 'Date',
+          border: OutlineInputBorder(),
+          suffixIcon: Icon(Icons.calendar_today),
+        ),
+        child: Text(_formatDate(_selectedDate)),
+      ),
+    );
+  }
+
+  Widget _dayList(List<ConsignmentEntry> entries) {
+    final dayEntries = entries.where((entry) => _sameDay(entry.date, _selectedDate)).toList()
+      ..sort(
+        (a, b) => a.productName.toLowerCase().compareTo(b.productName.toLowerCase()),
+      );
+
+    if (dayEntries.isEmpty) {
+      return const Center(child: Text('No products for this date'));
+    }
+
+    return ListView.separated(
+      itemCount: dayEntries.length,
+      separatorBuilder: (_, __) => const Divider(height: 1),
+      itemBuilder: (context, index) {
+        final entry = dayEntries[index];
+        final total = entry.price * entry.quantity;
+        return ListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(entry.productName),
+          subtitle: Text(
+            '₱${entry.price.toStringAsFixed(2)} × ${entry.quantity} = ₱${total.toStringAsFixed(2)}',
+          ),
+          trailing: IconButton(
+            icon: const Icon(Icons.delete, color: Colors.red),
+            tooltip: 'Remove',
+            onPressed: () => HiveDatabase.deleteConsignment(entry),
+          ),
         );
       },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final entriesBox = HiveDatabase.consignmentsBox();
+
+    return AlertDialog(
+      title: Text(_isEdit ? 'Edit Product' : 'Add Product'),
+      content: SizedBox(
+        width: 360,
+        child: ValueListenableBuilder(
+          valueListenable: entriesBox.listenable(),
+          builder: (context, Box<ConsignmentEntry> entriesBox, _) {
+            return SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: _nameController,
+                    textInputAction: TextInputAction.next,
+                    decoration: const InputDecoration(
+                      labelText: 'Product Name',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _priceController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: const [_DecimalInputFormatter()],
+                    decoration: const InputDecoration(
+                      labelText: 'Price',
+                      prefixText: '₱',
+                      border: OutlineInputBorder(),
+                    ),
+                    onSubmitted: (_) => _save(),
+                  ),
+                  if (!_isEdit) ...[
+                    const SizedBox(height: 16),
+                    _dateField(),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      height: 180,
+                      child: _dayList(entriesBox.values.toList()),
+                    ),
+                  ],
+                  if (_error != null) ...[
+                    const SizedBox(height: 12),
+                    Text(_error!, style: const TextStyle(color: Colors.red)),
+                  ],
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: _save,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.green[600],
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('Save'),
+        ),
+      ],
     );
   }
 }
